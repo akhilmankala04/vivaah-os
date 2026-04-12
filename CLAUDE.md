@@ -559,10 +559,18 @@ npm run dev         # development server (localhost:5173)
 Run in this order — do not skip or reorder:
 1. `vivaah-schema/migrations/20260409000000_vivaah_os_phase1_schema.sql`
 2. `vivaah-schema/migrations/20260410000001_fix_timelines_soft_delete.sql`
-3. `vivaah-schema/migrations/20260410000002_fix_financial_summary_security.sql`
-4. `vivaah-auth/policies/20260409000001_vivaah_os_phase1_rls.sql`
-5. `vivaah-auth/policies/20260410000003_fix_couple_view_vendors.sql`
-6. `vivaah-schema/migrations/20260410000010_phase2_schema_additions.sql`
+3. `vivaah-auth/policies/rls_final.sql`
+4. `vivaah-schema/migrations/20260410000010_phase2_schema_additions.sql`
+5. `vivaah-schema/migrations/20260411000002_fix_audit_trigger_security.sql`
+6. `vivaah-schema/migrations/20260412000001_briefings_table.sql`
+7. `vivaah-schema/migrations/20260413000001_fix_tasks_created_by_nullable.sql`
+
+Archived (superseded — do not run on fresh installs):
+- `vivaah-schema/migrations/archive/20260409000001_vivaah_os_phase1_rls.sql`
+- `vivaah-schema/migrations/archive/20260410000002_fix_financial_summary_security.sql`
+- `vivaah-auth/policies/archive/20260410000003_fix_couple_view_vendors.sql`
+- `vivaah-schema/migrations/archive/20260411000001_fix_onboarding_bootstrap.sql`
+- `vivaah-schema/migrations/archive/20260412000003_fix_vendor_directory_rls.sql`
 
 ---
 
