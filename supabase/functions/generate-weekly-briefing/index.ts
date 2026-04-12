@@ -9,7 +9,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const PROMPT_VERSION = 'v1.0-gemini'
-const GEMINI_MODEL = 'gemini-2.0-flash'
+const GEMINI_MODEL = 'gemini-2.5-flash-lite'
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`
 const TIMEOUT_MS = 45_000
 
@@ -74,6 +74,13 @@ interface StalledVendor {
 }
 
 interface OverdueTask {
+  id: string
+  title: string
+  due_date: string | null
+  status: string
+}
+
+interface UpcomingTask {
   id: string
   title: string
   due_date: string | null
@@ -167,6 +174,7 @@ function buildPrompt(
   unconfirmedVendors: UnconfirmedVendor[],
   stalledVendors: StalledVendor[],
   overdueTasks: OverdueTask[],
+  upcomingTasks: UpcomingTask[],
   budget: BudgetData,
   previousOverdueLabels: string[],
   today: Date,
@@ -217,6 +225,15 @@ BRIEFING RULES:
       }).join('\n')
     : '  - None'
 
+  const upcomingTasksText = upcomingTasks.length > 0
+    ? upcomingTasks.map(t => {
+        const daysUntil = t.due_date
+          ? Math.round((new Date(t.due_date).getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
+          : null
+        return `  - ${t.title}${t.due_date ? ` (due ${new Date(t.due_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'long' })}, in ${daysUntil} day${daysUntil === 1 ? '' : 's'})` : ''}`
+      }).join('\n')
+    : '  - No upcoming tasks'
+
   const previousOverdueText = previousOverdueLabels.length > 0
     ? previousOverdueLabels.map(l => `  - ${l}`).join('\n')
     : '  - None (first briefing)'
@@ -236,6 +253,9 @@ ${stalledVendorsText}
 OVERDUE TIMELINE TASKS:
 ${overdueTasksText}
 
+UPCOMING TIMELINE TASKS (next tasks due, not yet complete — use these verbatim for upcoming_section):
+${upcomingTasksText}
+
 BUDGET FIGURES (in paise — ÷100 for rupees):
   - Planned total: ${budget.planned_paise} paise (${formatRupees(budget.planned_paise)})
   - Committed (booked/confirmed/done): ${budget.committed_paise} paise (${formatRupees(budget.committed_paise)})
@@ -244,7 +264,7 @@ BUDGET FIGURES (in paise — ÷100 for rupees):
 ITEMS FROM LAST WEEK'S OVERDUE SECTION (for flagged_last_week detection):
 ${previousOverdueText}
 
-Generate the complete weekly briefing JSON following the schema provided. The budget_section.planned_paise, committed_paise, and paid_paise must exactly match the input figures above.`
+IMPORTANT: The upcoming_section must only contain items from the "UPCOMING TIMELINE TASKS" list above. Do not invent tasks. If that list is empty, upcoming_section should be an empty array. The budget_section.planned_paise, committed_paise, and paid_paise must exactly match the input figures above.`
 
   return { system, user }
 }
@@ -493,6 +513,19 @@ async function handleRequest(req: Request): Promise<Response> {
 
   const overdueTasks: OverdueTask[] = (overdueTasksRaw ?? []) as OverdueTask[]
 
+  // ── Fetch upcoming tasks (next 10 due, not complete) ─────────────────────
+  const { data: upcomingTasksRaw } = await supabase
+    .from('tasks')
+    .select('id, title, due_date, status')
+    .eq('wedding_id', weddingId)
+    .in('status', ['not_started', 'in_progress'])
+    .gte('due_date', today.toISOString().split('T')[0])
+    .is('deleted_at', null)
+    .order('due_date')
+    .limit(10)
+
+  const upcomingTasks: UpcomingTask[] = (upcomingTasksRaw ?? []) as UpcomingTask[]
+
   // ── Budget figures ─────────────────────────────────────────────────────────
   const plannedBudget = wedding.total_planned_budget ?? 0
 
@@ -551,6 +584,7 @@ async function handleRequest(req: Request): Promise<Response> {
     unconfirmedVendors,
     stalledVendors,
     overdueTasks,
+    upcomingTasks,
     budget,
     previousOverdueLabels,
     today,
@@ -638,7 +672,7 @@ async function handleRequest(req: Request): Promise<Response> {
   console.log(
     `generate-weekly-briefing: wedding=${weddingId} briefing=${briefingRecord.id} ` +
     `overdue=${aiOutput.overdue_section.length} at_risk=${aiOutput.at_risk_section.length} ` +
-    `all_clear=${aiOutput.is_all_clear}`,
+    `upcoming=${aiOutput.upcoming_section.length} all_clear=${aiOutput.is_all_clear}`,
   )
 
   return new Response(
@@ -648,6 +682,7 @@ async function handleRequest(req: Request): Promise<Response> {
       is_all_clear: aiOutput.is_all_clear,
       overdue_count: aiOutput.overdue_section.length,
       at_risk_count: aiOutput.at_risk_section.length,
+      upcoming_count: aiOutput.upcoming_section.length,
     }),
     { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } },
   )
