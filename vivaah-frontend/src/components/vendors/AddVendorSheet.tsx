@@ -50,6 +50,26 @@ export function AddVendorSheet({ isOpen, onClose, onSaved, weddingId: propWeddin
   const [saveError, setSaveError] = useState('');
   const [customCategoryError, setCustomCategoryError] = useState('');
 
+  // Reset all form state when the sheet opens so a previously picked vendor
+  // from a dismissed session does not persist into the next open.
+  useEffect(() => {
+    if (isOpen) {
+      setSearchTerm('');
+      setBrowseCategory('');
+      setBrowseCity('');
+      setCategory('');
+      setCustomCategory('');
+      setCity('');
+      setPhone('');
+      setRate(null);
+      setNotes('');
+      setSaveToDirectory(true);
+      setSelectedDirectoryMatch(null);
+      setSaveError('');
+      setCustomCategoryError('');
+    }
+  }, [isOpen]);
+
   // Search or browse vendor_directory (debounced 300ms)
   // When no filters are active, auto-load all recent directory vendors
   useEffect(() => {
