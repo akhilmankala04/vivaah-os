@@ -51,14 +51,10 @@ export function AddVendorSheet({ isOpen, onClose, onSaved, weddingId: propWeddin
   const [customCategoryError, setCustomCategoryError] = useState('');
 
   // Search or browse vendor_directory (debounced 300ms)
+  // When no filters are active, auto-load all recent directory vendors
   useEffect(() => {
     const isSearchMode = searchTerm.length >= 2;
-    const isBrowseMode = searchTerm.length === 0 && (browseCategory !== '' || browseCity.trim().length >= 2);
-
-    if (!isSearchMode && !isBrowseMode) {
-      setDirectoryMatches([]);
-      return;
-    }
+    const hasBrowseFilter = browseCategory !== '' || browseCity.trim().length >= 2;
 
     setIsSearching(true);
     const timer = setTimeout(async () => {
@@ -67,16 +63,17 @@ export function AddVendorSheet({ isOpen, onClose, onSaved, weddingId: propWeddin
         .select('id, vendor_name, category, city, phone, notes, wedding_count, last_used_date')
         .is('deleted_at', null)
         .order('wedding_count', { ascending: false })
-        .limit(8);
+        .limit(20);
 
       if (isSearchMode) {
         query = query.or(
           `vendor_name.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%,city.ilike.%${searchTerm}%`
         );
-      } else {
+      } else if (hasBrowseFilter) {
         if (browseCategory) query = query.eq('category', browseCategory);
         if (browseCity.trim()) query = query.ilike('city', `%${browseCity.trim()}%`);
       }
+      // else: no filters — fetch all, showing full directory
 
       const { data } = await query;
       setDirectoryMatches(
@@ -248,21 +245,57 @@ export function AddVendorSheet({ isOpen, onClose, onSaved, weddingId: propWeddin
                   className="h-11 w-full border border-gray-300 rounded-xl px-3 bg-white text-[15px] outline-none focus:border-vivaah-600 focus:ring-0"
                 >
                   <option value="">All categories</option>
-                  <option value="Photography">Photography</option>
-                  <option value="Videography">Videography</option>
-                  <option value="Venue">Venue</option>
-                  <option value="Catering">Catering</option>
-                  <option value="Decor">Decor</option>
-                  <option value="Makeup">Makeup</option>
-                  <option value="Mehendi">Mehendi</option>
-                  <option value="Pandit / Priest">Pandit / Priest</option>
-                  <option value="Band / Baraat">Band / Baraat</option>
-                  <option value="DJ">DJ</option>
-                  <option value="Choreographer">Choreographer</option>
-                  <option value="Invitation Cards">Invitation Cards</option>
-                  <option value="Transport">Transport</option>
-                  <option value="Accommodation">Accommodation</option>
-                  <option value="Fireworks">Fireworks</option>
+                  <optgroup label="Venue & Hospitality">
+                    <option value="Venue">Venue</option>
+                    <option value="Accommodation">Accommodation</option>
+                    <option value="Tent / Shamiana">Tent / Shamiana</option>
+                    <option value="Catering">Catering</option>
+                    <option value="Wedding Cake">Wedding Cake</option>
+                  </optgroup>
+                  <optgroup label="Photography & Film">
+                    <option value="Photography">Photography</option>
+                    <option value="Videography">Videography</option>
+                    <option value="Drone">Drone</option>
+                    <option value="Photo Booth">Photo Booth</option>
+                  </optgroup>
+                  <optgroup label="Beauty & Styling">
+                    <option value="Makeup">Makeup</option>
+                    <option value="Hair Stylist">Hair Stylist</option>
+                    <option value="Mehendi">Mehendi</option>
+                    <option value="Bridal Wear">Bridal Wear</option>
+                    <option value="Groom Wear">Groom Wear</option>
+                    <option value="Jewellery">Jewellery</option>
+                  </optgroup>
+                  <optgroup label="Decor & Florals">
+                    <option value="Decor">Decor</option>
+                    <option value="Florist">Florist</option>
+                    <option value="Lighting">Lighting</option>
+                    <option value="Rangoli Artist">Rangoli Artist</option>
+                  </optgroup>
+                  <optgroup label="Entertainment">
+                    <option value="DJ">DJ</option>
+                    <option value="Band / Baraat">Band / Baraat</option>
+                    <option value="Live Music / Performer">Live Music / Performer</option>
+                    <option value="Choreographer">Choreographer</option>
+                    <option value="Fireworks">Fireworks</option>
+                    <option value="Horse / Ghodi">Horse / Ghodi</option>
+                  </optgroup>
+                  <optgroup label="Coordination">
+                    <option value="Event Coordinator">Event Coordinator</option>
+                    <option value="Pandit / Priest">Pandit / Priest</option>
+                    <option value="Astrologer / Jyotishi">Astrologer / Jyotishi</option>
+                    <option value="Security">Security</option>
+                    <option value="Transport">Transport</option>
+                  </optgroup>
+                  <optgroup label="Stationery & Gifts">
+                    <option value="Invitation Cards">Invitation Cards</option>
+                    <option value="Calligrapher">Calligrapher</option>
+                    <option value="Gifts & Favours">Gifts & Favours</option>
+                    <option value="Trousseau Packing">Trousseau Packing</option>
+                  </optgroup>
+                  <optgroup label="Sound & AV">
+                    <option value="Sound & AV">Sound & AV</option>
+                  </optgroup>
                 </select>
               </div>
               <Input
@@ -276,7 +309,9 @@ export function AddVendorSheet({ isOpen, onClose, onSaved, weddingId: propWeddin
 
           {directoryMatches.length > 0 && (
             <div className="mt-4 space-y-2">
-              <span className="text-xs font-medium text-gray-500 uppercase tracking-widest">Directory Matches</span>
+              <span className="text-xs font-medium text-gray-500 uppercase tracking-widest">
+                {searchTerm.length >= 2 ? 'Directory matches' : 'Your directory'}
+              </span>
               {directoryMatches.map(m => (
                 <div
                   key={m.id}
@@ -310,21 +345,57 @@ export function AddVendorSheet({ isOpen, onClose, onSaved, weddingId: propWeddin
                   className="h-11 w-full border border-gray-300 rounded-xl px-3 bg-white text-[15px] outline-none focus:border-vivaah-600 focus:ring-0"
                 >
                   <option value="">Select category...</option>
-                  <option value="Photography">Photography</option>
-                  <option value="Videography">Videography</option>
-                  <option value="Venue">Venue</option>
-                  <option value="Catering">Catering</option>
-                  <option value="Decor">Decor</option>
-                  <option value="Makeup">Makeup</option>
-                  <option value="Mehendi">Mehendi</option>
-                  <option value="Pandit / Priest">Pandit / Priest</option>
-                  <option value="Band / Baraat">Band / Baraat</option>
-                  <option value="DJ">DJ</option>
-                  <option value="Choreographer">Choreographer</option>
-                  <option value="Invitation Cards">Invitation Cards</option>
-                  <option value="Transport">Transport</option>
-                  <option value="Accommodation">Accommodation</option>
-                  <option value="Fireworks">Fireworks</option>
+                  <optgroup label="Venue & Hospitality">
+                    <option value="Venue">Venue</option>
+                    <option value="Accommodation">Accommodation</option>
+                    <option value="Tent / Shamiana">Tent / Shamiana</option>
+                    <option value="Catering">Catering</option>
+                    <option value="Wedding Cake">Wedding Cake</option>
+                  </optgroup>
+                  <optgroup label="Photography & Film">
+                    <option value="Photography">Photography</option>
+                    <option value="Videography">Videography</option>
+                    <option value="Drone">Drone</option>
+                    <option value="Photo Booth">Photo Booth</option>
+                  </optgroup>
+                  <optgroup label="Beauty & Styling">
+                    <option value="Makeup">Makeup</option>
+                    <option value="Hair Stylist">Hair Stylist</option>
+                    <option value="Mehendi">Mehendi</option>
+                    <option value="Bridal Wear">Bridal Wear</option>
+                    <option value="Groom Wear">Groom Wear</option>
+                    <option value="Jewellery">Jewellery</option>
+                  </optgroup>
+                  <optgroup label="Decor & Florals">
+                    <option value="Decor">Decor</option>
+                    <option value="Florist">Florist</option>
+                    <option value="Lighting">Lighting</option>
+                    <option value="Rangoli Artist">Rangoli Artist</option>
+                  </optgroup>
+                  <optgroup label="Entertainment">
+                    <option value="DJ">DJ</option>
+                    <option value="Band / Baraat">Band / Baraat</option>
+                    <option value="Live Music / Performer">Live Music / Performer</option>
+                    <option value="Choreographer">Choreographer</option>
+                    <option value="Fireworks">Fireworks</option>
+                    <option value="Horse / Ghodi">Horse / Ghodi</option>
+                  </optgroup>
+                  <optgroup label="Coordination">
+                    <option value="Event Coordinator">Event Coordinator</option>
+                    <option value="Pandit / Priest">Pandit / Priest</option>
+                    <option value="Astrologer / Jyotishi">Astrologer / Jyotishi</option>
+                    <option value="Security">Security</option>
+                    <option value="Transport">Transport</option>
+                  </optgroup>
+                  <optgroup label="Stationery & Gifts">
+                    <option value="Invitation Cards">Invitation Cards</option>
+                    <option value="Calligrapher">Calligrapher</option>
+                    <option value="Gifts & Favours">Gifts & Favours</option>
+                    <option value="Trousseau Packing">Trousseau Packing</option>
+                  </optgroup>
+                  <optgroup label="Sound & AV">
+                    <option value="Sound & AV">Sound & AV</option>
+                  </optgroup>
                   <option value="Custom">Custom...</option>
                 </select>
                 <div className="mt-2">

@@ -49,9 +49,6 @@ export default function ConfirmationTracker() {
 
   async function fetchTracked() {
     if (!weddingId) return;
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-    const cutoffISO = thirtyDaysFromNow.toISOString().split('T')[0];
 
     const { data: vendors } = await supabase
       .from('vendor_instances_view')
@@ -70,15 +67,11 @@ export default function ConfirmationTracker() {
     const now = Date.now();
 
     const trackedItems = (vendors as unknown as TrackedVendor[])
-      .filter(v =>
-        v.vendor_instance_events?.some(vie =>
-          vie.events && vie.events.event_date <= cutoffISO
-        )
-      )
       .map(v => {
+        // Show soonest upcoming event if linked — but don't require an event link
         const soonestEvent = v.vendor_instance_events
           ?.map(vie => vie.events)
-          .filter((e): e is EventRef => e !== null && e.event_date <= cutoffISO)
+          .filter((e): e is EventRef => e !== null)
           .sort((a, b) => a.event_date.localeCompare(b.event_date))[0] ?? null;
 
         const daysUntilEvent = soonestEvent

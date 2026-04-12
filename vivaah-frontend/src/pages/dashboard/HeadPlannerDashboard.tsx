@@ -459,11 +459,15 @@ export default function HeadPlannerDashboard({ wedding }: Props) {
             <span className="text-lg">🪷</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-[15px] font-medium text-vivaah-900">
+            <p className="text-sm text-vivaah-700">Questions about your wedding plan?</p>
+            <p className="text-[15px] font-medium text-vivaah-900 flex items-center gap-1">
               Ask Madhu
-            </p>
-            <p className="text-sm text-vivaah-700">
-              Questions about your wedding plan? I know your vendors, budget, and timeline.
+              <svg viewBox="0 0 10 10" fill="currentColor" className="w-2.5 h-2.5 text-vivaah-500 flex-shrink-0" aria-hidden="true">
+                <path d="M5 0 C5 0 5.4 2.8 6.2 3.8 C7 4.8 10 5 10 5 C10 5 7 5.2 6.2 6.2 C5.4 7.2 5 10 5 10 C5 10 4.6 7.2 3.8 6.2 C3 5.2 0 5 0 5 C0 5 3 4.8 3.8 3.8 C4.6 2.8 5 0 5 0 Z" />
+              </svg>
+              <svg viewBox="0 0 10 10" fill="currentColor" className="w-1.5 h-1.5 text-vivaah-400 flex-shrink-0" aria-hidden="true">
+                <path d="M5 0 C5 0 5.4 2.8 6.2 3.8 C7 4.8 10 5 10 5 C10 5 7 5.2 6.2 6.2 C5.4 7.2 5 10 5 10 C5 10 4.6 7.2 3.8 6.2 C3 5.2 0 5 0 5 C0 5 3 4.8 3.8 3.8 C4.6 2.8 5 0 5 0 Z" />
+              </svg>
             </p>
           </div>
           <span className="text-vivaah-400 text-lg flex-shrink-0">→</span>

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 
 interface Props {
-  eventType: 'haldi' | 'mehendi' | 'sangeet' | 'engagement' | 'wedding' | 'reception';
+  eventType: string; // accepts any event name — unknown types return empty chip list
   onSelectCategory: (category: string) => void;
 }
 
@@ -22,7 +22,7 @@ export function CategoryDefaults({ eventType, onSelectCategory }: Props) {
     async function fetchCategories() {
       setLoading(true);
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/get-event-category-defaults?event_type=${eventType}`,
         {

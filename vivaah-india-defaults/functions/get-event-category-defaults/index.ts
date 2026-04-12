@@ -24,13 +24,7 @@ serve(async (req) => {
       )
     }
 
-    const validEventTypes = ['haldi', 'mehendi', 'sangeet', 'engagement', 'wedding', 'reception']
-    if (!validEventTypes.includes(event_type)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid event_type. Must be one of: haldi, mehendi, sangeet, engagement, wedding, reception' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-      )
-    }
+    // No strict validation — unknown event types return an empty array gracefully
 
     // Initialize Supabase Client
     // This function does not perform sensitive DB writes so using the authorization header representing the user calling the function is appropriate

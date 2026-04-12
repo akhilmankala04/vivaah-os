@@ -71,7 +71,10 @@ export function BottomNav({ weddingId, currentAccessLevel, currentPath }: Props)
                 >
                   {item.label}
                   {item.isAI && (
-                    <Sparkle className={`w-2.5 h-2.5 ml-1 mb-2 ${isActive ? 'text-vivaah-600' : 'text-gray-400'}`} />
+                    <>
+                      <Sparkle className="w-2.5 h-2.5 ml-1 mb-2 text-vivaah-500" />
+                      <Sparkle className="w-1.5 h-1.5 ml-0.5 mb-0.5 text-vivaah-400" />
+                    </>
                   )}
                   {isActive && (
                     <span className="ml-auto w-1.5 h-1.5 rounded-full bg-vivaah-600" />
@@ -98,7 +101,10 @@ export function BottomNav({ weddingId, currentAccessLevel, currentPath }: Props)
             >
               {item.label}
               {item.isAI && (
-                <Sparkle className={`absolute top-1.5 right-[calc(50%-14px)] w-2 h-2 ${isActive ? 'text-vivaah-500' : 'text-gray-300'}`} />
+                <>
+                  <Sparkle className="absolute top-1 right-[calc(50%-16px)] w-2 h-2 text-vivaah-500" />
+                  <Sparkle className="absolute top-2.5 right-[calc(50%-22px)] w-1.5 h-1.5 text-vivaah-400" />
+                </>
               )}
             </button>
           );
