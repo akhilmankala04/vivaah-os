@@ -564,6 +564,7 @@ Run in this order — do not skip or reorder:
 5. `vivaah-schema/migrations/20260411000002_fix_audit_trigger_security.sql`
 6. `vivaah-schema/migrations/20260412000001_briefings_table.sql`
 7. `vivaah-schema/migrations/20260413000001_fix_tasks_created_by_nullable.sql`
+8. `vivaah-schema/migrations/20260414000001_event_category_defaults_rls.sql`
 
 Archived (superseded — do not run on fresh installs):
 - `vivaah-schema/migrations/archive/20260409000001_vivaah_os_phase1_rls.sql`
