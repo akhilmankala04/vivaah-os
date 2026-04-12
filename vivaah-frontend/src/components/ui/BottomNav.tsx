@@ -8,7 +8,21 @@ interface Props {
   currentPath: string;
 }
 
-const MAX_VISIBLE = 4;
+const MAX_VISIBLE = 5;
+
+// 4-pointed sparkle — used to mark AI-powered nav items
+function Sparkle({ className }: { className: string }) {
+  return (
+    <svg
+      viewBox="0 0 10 10"
+      fill="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M5 0 C5 0 5.4 2.8 6.2 3.8 C7 4.8 10 5 10 5 C10 5 7 5.2 6.2 6.2 C5.4 7.2 5 10 5 10 C5 10 4.6 7.2 3.8 6.2 C3 5.2 0 5 0 5 C0 5 3 4.8 3.8 3.8 C4.6 2.8 5 0 5 0 Z" />
+    </svg>
+  );
+}
 
 export function BottomNav({ weddingId, currentAccessLevel, currentPath }: Props) {
   const navigate = useNavigate();
@@ -23,7 +37,7 @@ export function BottomNav({ weddingId, currentAccessLevel, currentPath }: Props)
   const hasOverflow = overflowItems.length > 0;
 
   const isOverflowActive = overflowItems.some(item =>
-    currentPath === item.path(weddingId) || currentPath.startsWith(item.path(weddingId))
+    currentPath === item.path(weddingId) || currentPath.startsWith(item.path(weddingId) + '/')
   );
 
   function handleNavigate(path: string) {
@@ -46,7 +60,7 @@ export function BottomNav({ weddingId, currentAccessLevel, currentPath }: Props)
             <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mt-3 mb-3" />
             {overflowItems.map(item => {
               const path = item.path(weddingId);
-              const isActive = currentPath === path || currentPath.startsWith(path);
+              const isActive = currentPath === path || currentPath.startsWith(path + '/');
               return (
                 <button
                   key={item.label}
@@ -56,6 +70,9 @@ export function BottomNav({ weddingId, currentAccessLevel, currentPath }: Props)
                   }`}
                 >
                   {item.label}
+                  {item.isAI && (
+                    <Sparkle className={`w-2.5 h-2.5 ml-1 mb-2 ${isActive ? 'text-vivaah-600' : 'text-gray-400'}`} />
+                  )}
                   {isActive && (
                     <span className="ml-auto w-1.5 h-1.5 rounded-full bg-vivaah-600" />
                   )}
@@ -70,16 +87,19 @@ export function BottomNav({ weddingId, currentAccessLevel, currentPath }: Props)
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 flex max-w-md mx-auto h-[56px] z-50">
         {visibleItems.map((item) => {
           const path = item.path(weddingId);
-          const isActive = currentPath === path || currentPath.startsWith(path);
+          const isActive = currentPath === path || currentPath.startsWith(path + '/');
           return (
             <button
               key={item.label}
               onClick={() => { setMoreOpen(false); navigate(path); }}
-              className={`flex-1 flex flex-col items-center justify-center text-xs font-medium min-h-[44px] ${
+              className={`flex-1 flex flex-col items-center justify-center text-xs font-medium min-h-[44px] relative ${
                 isActive ? 'text-vivaah-600' : 'text-gray-400'
               }`}
             >
               {item.label}
+              {item.isAI && (
+                <Sparkle className={`absolute top-1.5 right-[calc(50%-14px)] w-2 h-2 ${isActive ? 'text-vivaah-500' : 'text-gray-300'}`} />
+              )}
             </button>
           );
         })}

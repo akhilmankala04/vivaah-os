@@ -175,32 +175,37 @@ export default function PaymentCalendar() {
   async function handleMarkPaid() {
     if (!selected || !paidDate) return;
     setMarking(true);
-    await supabase
+    const { error } = await supabase
       .from('payment_milestones')
       .update({ status: 'paid', paid_date: paidDate })
       .eq('id', selected.id);
     setMarking(false);
     setShowMarkPaid(false);
-    await fetchMilestones();
+    if (!error) {
+      setMilestones(prev => prev.map(m =>
+        m.id === selected.id ? { ...m, status: 'paid' as const, paid_date: paidDate } : m
+      ));
+    }
   }
 
   async function handleEditSave() {
     if (!selected || !editDueDate || !editAmount) return;
     setSaving(true);
     const todayStr = new Date().toISOString().split('T')[0];
-    const newStatus = editDueDate < todayStr ? 'overdue' : selected.status;
-    await supabase
+    const newStatus: Milestone['status'] = editDueDate < todayStr ? 'overdue' : 'upcoming';
+    const { error } = await supabase
       .from('payment_milestones')
-      .update({
-        amount: editAmount,
-        due_date: editDueDate,
-        description: editDescription,
-        status: newStatus,
-      })
+      .update({ amount: editAmount, due_date: editDueDate, description: editDescription, status: newStatus })
       .eq('id', selected.id);
     setSaving(false);
     setShowEdit(false);
-    await fetchMilestones();
+    if (!error) {
+      setMilestones(prev => prev.map(m =>
+        m.id === selected.id
+          ? { ...m, amount: editAmount, due_date: editDueDate, description: editDescription, status: newStatus }
+          : m
+      ));
+    }
   }
 
   async function handleSoftDelete() {
@@ -212,7 +217,7 @@ export default function PaymentCalendar() {
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', selected.id);
     setShowEdit(false);
-    await fetchMilestones();
+    setMilestones(prev => prev.filter(m => m.id !== selected.id));
   }
 
   function handleAddAmountChange(val: number | null) {

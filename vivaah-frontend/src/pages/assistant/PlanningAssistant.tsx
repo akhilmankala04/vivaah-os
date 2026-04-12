@@ -58,32 +58,19 @@ export default function PlanningAssistant() {
     setMessages(prev => [...prev, { role: 'user', content: userMessage, timestamp: new Date() }])
 
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-assistant`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${session?.access_token}`,
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({
-            weddingId,
-            userMessage,
-            conversationHistory: messages.slice(-6).map(m => ({
-              role: m.role,
-              content: m.content
-            }))
-          })
+      const { data, error } = await supabase.functions.invoke('ai-assistant', {
+        body: {
+          weddingId,
+          userMessage,
+          conversationHistory: messages.slice(-6).map(m => ({
+            role: m.role,
+            content: m.content
+          }))
         }
-      )
+      })
 
-      const data = await response.json()
-
-      if (!response.ok || data.error) {
-        throw new Error(data.error ?? 'Request failed')
+      if (error || !data?.message) {
+        throw new Error(data?.error ?? error?.message ?? 'Request failed')
       }
 
       setMessages(prev => [...prev, {
@@ -119,7 +106,7 @@ export default function PlanningAssistant() {
           ←
         </button>
         <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-medium text-gray-900">Ask your assistant</h1>
+          <h1 className="text-xl font-medium text-gray-900">Ask Madhu</h1>
           {coupleNames && (
             <p className="text-sm text-gray-500 truncate">{coupleNames}</p>
           )}
@@ -141,7 +128,7 @@ export default function PlanningAssistant() {
             <div className="w-16 h-16 bg-vivaah-50 border border-vivaah-200 rounded-full flex items-center justify-center mb-4">
               <span className="text-2xl">🪷</span>
             </div>
-            <h2 className="text-xl font-medium text-gray-900 mb-1">Ask about your wedding</h2>
+            <h2 className="text-xl font-medium text-gray-900 mb-1">Hi, I'm Madhu ✦</h2>
             <p className="text-[15px] text-gray-500 text-center mb-6">
               I know your full plan — vendors, budget, timeline, events. Ask me anything.
             </p>

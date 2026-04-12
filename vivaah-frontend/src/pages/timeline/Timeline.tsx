@@ -42,9 +42,8 @@ interface TimelineRecord {
 
 function weekLabel(weekOffset: number): string {
   if (weekOffset === 0) return 'Wedding week';
-  if (weekOffset > 0) return `${weekOffset} week${weekOffset === 1 ? '' : 's'} after`;
-  const abs = Math.abs(weekOffset);
-  return `${abs} week${abs === 1 ? '' : 's'} to go`;
+  // positive offset = weeks BEFORE the wedding
+  return `${weekOffset} week${weekOffset === 1 ? '' : 's'} to go`;
 }
 
 function categoryLabel(category: TimelineItem['category']): string {
@@ -200,8 +199,8 @@ export default function Timeline() {
     const existing = weekGroups.get(item.week_offset) ?? [];
     weekGroups.set(item.week_offset, [...existing, item]);
   }
-  // Sort weeks from furthest out (most negative) to soonest (0)
-  const sortedWeeks = Array.from(weekGroups.entries()).sort((a, b) => a[0] - b[0]);
+  // Sort weeks from furthest out (highest offset) to soonest (0 = wedding week)
+  const sortedWeeks = Array.from(weekGroups.entries()).sort((a, b) => b[0] - a[0]);
 
   const hasItems = items.length > 0;
 
@@ -213,13 +212,12 @@ export default function Timeline() {
       <div className="bg-white border-b border-gray-100 px-4 pt-4 pb-3 sticky top-0 z-10">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-medium">Planning timeline</h1>
-          {/* Phase 3 placeholder — regenerate */}
           <button
-            disabled
-            className="text-sm text-gray-400 cursor-not-allowed"
-            title="Regenerate timeline — Phase 3"
+            onClick={handleGenerate}
+            disabled={isGenerating}
+            className="text-sm text-vivaah-600 min-h-[44px] px-2 flex items-center disabled:opacity-50"
           >
-            Regenerate
+            {isGenerating ? 'Regenerating…' : 'Regenerate'}
           </button>
         </div>
         {timeline?.late_start_flag && timeline.late_start_weeks > 0 && (

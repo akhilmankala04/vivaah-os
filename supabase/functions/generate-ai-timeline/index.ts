@@ -108,7 +108,8 @@ INDIAN WEDDING PLANNING RULES:
 5. Budget tasks: advance deposits, balance payments, budget review at 8 weeks and 4 weeks
 6. Event tasks: finalise guest list at 12 weeks, dietary requirements at 6 weeks, seating at 3 weeks
 7. Admin tasks: accommodation for outstation guests, transport, day-of coordination schedule
-8. Always include 2–3 tasks in the final 1–2 weeks: final vendor brief, day-of schedule distribution, emergency contact list`
+8. Always include 2–3 tasks in the final 1–2 weeks: final vendor brief, day-of schedule distribution, emergency contact list
+9. week_offset in your response must ALWAYS be a positive integer representing weeks BEFORE the wedding date. week_offset=1 means 1 week before wedding. week_offset=20 means 20 weeks before wedding. Never use 0 or negative values.`
 
   const lateStartNote = wedding.late_start_flag && wedding.late_start_weeks > 0
     ? `\nLATE START ALERT: This couple is ${wedding.late_start_weeks} weeks behind the standard planning horizon. Resequence by CONSEQUENCE SEVERITY — vendor bookings that risk unavailability (venue, photographer, caterer) must appear in the earliest available weeks. Compress lower-priority tasks (decor details, invitation wording) to allow critical bookings first.`
@@ -160,7 +161,7 @@ async function callGemini(apiKey: string, system: string, user: string): Promise
             items: {
               type: 'object',
               properties: {
-                week_offset: { type: 'integer' },
+                week_offset: { type: 'integer', description: 'Weeks BEFORE the wedding date when this task should be completed. Always a positive integer. Example: 20 means 20 weeks before the wedding.' },
                 title: { type: 'string' },
                 description: { type: 'string' },
                 category: { type: 'string', enum: ['vendor', 'budget', 'event', 'admin'] },
@@ -251,7 +252,8 @@ async function createTasksForItems(
     if (weddingDate) {
       const wedding = new Date(weddingDate)
       const due = new Date(wedding)
-      due.setDate(due.getDate() + item.week_offset * 7)
+      // week_offset is weeks BEFORE the wedding (positive = earlier than wedding date)
+      due.setDate(due.getDate() - item.week_offset * 7)
       dueDate = due.toISOString().split('T')[0]
     }
 

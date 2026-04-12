@@ -1,19 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
-import { Button } from '../../components/ui/Button';
 import { SkeletonCard } from '../../components/ui/SkeletonCard';
 import { RupeeInput } from '../../components/ui/RupeeInput';
+import { Button } from '../../components/ui/Button';
 import { formatDateDDMMYYYY } from '../../lib/dateUtils';
 import { getMockRole } from '../../lib/mockAuth';
 import { BottomNav } from '../../components/ui/BottomNav';
-
-interface CoupleFinancials {
-  total_planned: number;
-  total_committed: number;
-  total_paid: number;
-  upcoming_30_days: number;
-}
 
 interface CommittedVendor {
   id: string;
@@ -30,12 +23,20 @@ interface PaidMilestone {
   vendor_instances_view: { vendor_name: string }[] | null;
 }
 
-// Format paise to ₹ display
 function formatRupees(paise: number): string {
   const rupees = paise / 100;
   if (rupees >= 10000000) return `₹${(rupees / 10000000).toFixed(2)} crore`;
   if (rupees >= 100000) return `₹${(rupees / 100000).toFixed(2)} lakh`;
   return `₹${rupees.toLocaleString('en-IN')}`;
+}
+
+function statusColour(status: string): string {
+  switch (status) {
+    case 'booked':    return 'bg-blue-100 text-blue-800';
+    case 'confirmed': return 'bg-emerald-100 text-emerald-800';
+    case 'done':      return 'bg-vivaah-100 text-vivaah-800';
+    default:          return 'bg-gray-100 text-gray-600';
+  }
 }
 
 export default function BudgetLedger() {
@@ -44,28 +45,16 @@ export default function BudgetLedger() {
   const location = useLocation();
   const role = getMockRole();
 
-  // Access-level gate
-  // Allowed: planner_full, full, budget, couple_view (restricted)
-  // couple_view (Mode 1): couple_view_financial_summary only — no planned, no breakdown
-  const isCoupleView = role === 'couple_view';
   const isBudgetOrFull = ['planner_full', 'full', 'budget', 'head_planner'].includes(role);
-  if (!isCoupleView && !isBudgetOrFull) {
-    return <Navigate to="/permission-denied" replace />;
-  }
+  if (!isBudgetOrFull) return <Navigate to="/permission-denied" replace />;
 
   const [loading, setLoading] = useState(true);
-  // Couple-view state
-  const [coupleFinancials, setCoupleFinancials] = useState<CoupleFinancials | null>(null);
-  // Full view state
   const [planned, setPlanned] = useState(0);
   const [committed, setCommitted] = useState(0);
   const [paid, setPaid] = useState(0);
   const [committedVendors, setCommittedVendors] = useState<CommittedVendor[]>([]);
   const [paidMilestones, setPaidMilestones] = useState<PaidMilestone[]>([]);
-  const [vendorsExpanded, setVendorsExpanded] = useState(false);
-  const [paymentsExpanded, setPaymentsExpanded] = useState(false);
 
-  // Inline budget edit
   const [editingBudget, setEditingBudget] = useState(false);
   const [newBudget, setNewBudget] = useState<number | null>(null);
   const [savingBudget, setSavingBudget] = useState(false);
@@ -73,22 +62,8 @@ export default function BudgetLedger() {
   async function fetchData() {
     if (!weddingId) return;
     setLoading(true);
-
-    if (isCoupleView) {
-      const { data } = await supabase
-        .rpc('couple_view_financial_summary', { p_wedding_id: weddingId });
-      if (data && data.length > 0) setCoupleFinancials(data[0]);
-      setLoading(false);
-      return;
-    }
-
-    // Full view: compute all figures live (FR-S10-01, FR-S10-02)
     const [weddingRes, vendorsRes, milestonesRes] = await Promise.all([
-      supabase
-        .from('weddings')
-        .select('total_planned_budget')
-        .eq('id', weddingId)
-        .single(),
+      supabase.from('weddings').select('total_planned_budget').eq('id', weddingId).single(),
       supabase
         .from('vendor_instances_view')
         .select('id, vendor_name, category, negotiated_rate, confirmation_status')
@@ -97,23 +72,20 @@ export default function BudgetLedger() {
         .is('deleted_at', null),
       supabase
         .from('payment_milestones')
-        .select(`
-          amount, paid_date, description,
-          vendor_instances_view!vendor_instance_id (vendor_name)
-        `)
+        .select('amount, paid_date, description, vendor_instances_view!vendor_instance_id(vendor_name)')
         .eq('wedding_id', weddingId)
         .eq('status', 'paid')
-        .is('deleted_at', null),
+        .is('deleted_at', null)
+        .order('paid_date', { ascending: false }),
     ]);
 
-    const planedVal = weddingRes.data?.total_planned_budget ?? 0;
     const vendors: CommittedVendor[] = vendorsRes.data ?? [];
     const milestones = (milestonesRes.data as unknown as PaidMilestone[]) ?? [];
-
+    const planVal = weddingRes.data?.total_planned_budget ?? 0;
     const committedVal = vendors.reduce((s, v) => s + (v.negotiated_rate ?? 0), 0);
     const paidVal = milestones.reduce((s, m) => s + m.amount, 0);
 
-    setPlanned(planedVal);
+    setPlanned(planVal);
     setCommitted(committedVal);
     setPaid(paidVal);
     setCommittedVendors(vendors);
@@ -125,208 +97,234 @@ export default function BudgetLedger() {
 
   const remaining = planned - committed;
   const committedPct = planned > 0 ? Math.round((committed / planned) * 100) : 0;
+  const paidPct = planned > 0 ? Math.round((paid / planned) * 100) : 0;
+
+  const barColour = committedPct >= 100 ? 'bg-red-500' : committedPct >= 85 ? 'bg-amber-400' : 'bg-emerald-500';
 
   async function handleBudgetSave() {
     if (!weddingId || !newBudget) return;
     setSavingBudget(true);
-    // Update both weddings record and budget_ledger for consistency
-    await supabase
-      .from('weddings')
-      .update({ total_planned_budget: newBudget })
-      .eq('id', weddingId);
-    await supabase
-      .from('budget_ledger')
-      .update({ total_planned_budget: newBudget, last_updated_at: new Date().toISOString() })
-      .eq('wedding_id', weddingId);
+    await Promise.all([
+      supabase.from('weddings').update({ total_planned_budget: newBudget }).eq('id', weddingId),
+      supabase.from('budget_ledger').update({ total_planned_budget: newBudget }).eq('wedding_id', weddingId),
+    ]);
     setSavingBudget(false);
     setEditingBudget(false);
-    await fetchData();
+    fetchData();
   }
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 max-w-md mx-auto space-y-3">
-        <SkeletonCard /><SkeletonCard />
+        <SkeletonCard /><SkeletonCard /><SkeletonCard />
       </div>
     );
   }
 
-  // ── Couple view (Mode 1) — restricted ─────────────────────────────────────
-  if (isCoupleView && coupleFinancials) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4 max-w-md mx-auto">
-        <button onClick={() => navigate(-1)} className="mb-4 text-sm text-gray-500 min-h-[44px] flex items-center">
-          ← Back
-        </button>
-        <h1 className="text-[28px] font-medium mb-6">Budget</h1>
-        <div className="bg-white border border-gray-100 rounded-2xl p-4">
-          <div className="flex justify-between">
-            <div>
-              <p className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Committed</p>
-              <p className="text-[28px] font-medium mt-1">{formatRupees(coupleFinancials.total_committed)}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Paid</p>
-              <p className="text-[28px] font-medium mt-1">{formatRupees(coupleFinancials.total_paid)}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Due 30 days</p>
-              <p className="text-[28px] font-medium mt-1">{formatRupees(coupleFinancials.upcoming_30_days)}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // ── Full view ─────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50 pb-24 max-w-md mx-auto">
+
       {/* Header */}
-      <div className="px-4 pt-6 pb-4 flex items-center gap-3">
-        <button onClick={() => navigate(-1)} className="min-h-[44px] min-w-[44px] flex items-center text-sm text-gray-500">
+      <div className="bg-white border-b border-gray-100 px-4 pt-4 pb-3 flex items-center gap-2">
+        <button
+          onClick={() => navigate(-1)}
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-gray-500 -ml-2"
+        >
           ←
         </button>
-        <h1 className="text-[28px] font-medium">Budget</h1>
+        <h1 className="text-xl font-medium flex-1">Budget</h1>
+        {!editingBudget && role !== 'budget' && (
+          <button
+            onClick={() => { setNewBudget(planned); setEditingBudget(true); }}
+            className="text-sm text-vivaah-600 min-h-[44px] px-2 flex items-center"
+          >
+            Edit budget
+          </button>
+        )}
       </div>
 
-      {/* Three headline figures */}
-      <div className="mx-4 bg-white border border-gray-100 rounded-2xl p-4 mb-3">
-        <div className="flex justify-between items-start">
-          {/* Planned — editable */}
-          <div>
-            <p className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Planned</p>
-            {editingBudget ? (
-              <div className="mt-1 space-y-2">
-                <RupeeInput label="" value={newBudget ?? planned} onChange={setNewBudget} />
-                <div className="flex gap-2">
-                  <Button variant="primary" size="small" onClick={handleBudgetSave} disabled={savingBudget || !newBudget}>
-                    {savingBudget ? 'Saving…' : 'Save'}
-                  </Button>
-                  <Button variant="ghost" size="small" onClick={() => setEditingBudget(false)}>Cancel</Button>
-                </div>
+      <div className="px-4 pt-4 space-y-3">
+
+        {/* Edit budget inline */}
+        {editingBudget && (
+          <div className="bg-white border border-vivaah-200 rounded-2xl p-4 space-y-3">
+            <p className="text-[11px] font-medium tracking-wide uppercase text-vivaah-700">Update planned budget</p>
+            <RupeeInput label="Total planned budget" value={newBudget ?? planned} onChange={setNewBudget} />
+            <div className="flex gap-2">
+              <Button variant="primary" size="small" onClick={handleBudgetSave} disabled={savingBudget || !newBudget} className="flex-1">
+                {savingBudget ? 'Saving…' : 'Save'}
+              </Button>
+              <Button variant="ghost" size="small" onClick={() => setEditingBudget(false)} className="flex-1">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Hero budget card */}
+        <div className="bg-white border border-gray-100 rounded-2xl p-4">
+          {/* Planned budget — hero figure */}
+          <div className="mb-4">
+            <p className="text-[11px] font-medium tracking-wide uppercase text-gray-500 mb-1">Planned budget</p>
+            <p className="text-[28px] font-medium leading-tight">{formatRupees(planned)}</p>
+          </div>
+
+          {/* Progress bar */}
+          <div className="mb-1">
+            <div className="w-full bg-gray-100 rounded-full h-2.5 overflow-hidden">
+              {/* Paid layer (underneath) */}
+              <div className="relative h-2.5">
+                <div
+                  className="absolute top-0 left-0 h-full rounded-full bg-emerald-400 transition-all"
+                  style={{ width: `${Math.min(paidPct, 100)}%` }}
+                />
+                <div
+                  className={`absolute top-0 left-0 h-full rounded-full transition-all opacity-80 ${barColour}`}
+                  style={{ width: `${Math.min(committedPct, 100)}%` }}
+                />
               </div>
-            ) : (
-              <div className="flex items-baseline gap-2">
-                <p className="text-[28px] font-medium mt-1">{formatRupees(planned)}</p>
-                {role !== 'budget' && (
-                  <button
-                    onClick={() => { setNewBudget(planned); setEditingBudget(true); }}
-                    className="text-xs text-vivaah-600 min-h-[44px] flex items-center"
-                  >
-                    Edit
-                  </button>
-                )}
-              </div>
-            )}
+            </div>
+            <div className="flex justify-between mt-1">
+              <p className="text-xs text-gray-400">{committedPct}% committed</p>
+              <p className="text-xs text-gray-400">{paidPct}% paid</p>
+            </div>
           </div>
-          <div>
-            <p className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Committed</p>
-            <p className="text-[28px] font-medium mt-1">{formatRupees(committed)}</p>
+
+          {/* Three stats */}
+          <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-gray-100">
+            <div>
+              <p className="text-[11px] font-medium tracking-wide uppercase text-gray-500 mb-1">Committed</p>
+              <p className={`text-[17px] font-medium ${committedPct >= 100 ? 'text-red-600' : committedPct >= 85 ? 'text-amber-600' : 'text-gray-900'}`}>
+                {formatRupees(committed)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] font-medium tracking-wide uppercase text-gray-500 mb-1">Paid</p>
+              <p className="text-[17px] font-medium text-emerald-600">{formatRupees(paid)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] font-medium tracking-wide uppercase text-gray-500 mb-1">
+                {remaining < 0 ? 'Over by' : 'Remaining'}
+              </p>
+              <p className={`text-[17px] font-medium ${remaining < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                {formatRupees(Math.abs(remaining))}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-[11px] font-medium tracking-wide uppercase text-gray-500">Paid</p>
-            <p className="text-[28px] font-medium mt-1">{formatRupees(paid)}</p>
+        </div>
+
+        {/* Over-budget alert */}
+        {committedPct >= 100 && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4">
+            <p className="text-[11px] font-medium tracking-wide uppercase text-red-700 mb-1">Over budget</p>
+            <p className="text-[15px] text-red-800">
+              Committed spend exceeds your planned total by <span className="font-medium">{formatRupees(committed - planned)}</span>. Review vendor rates or increase your budget.
+            </p>
           </div>
-        </div>
+        )}
 
-        {/* Remaining */}
-        <p className={`text-sm mt-3 ${remaining < 0 ? 'text-red-600' : 'text-green-700'}`}>
-          {remaining < 0
-            ? `${formatRupees(Math.abs(remaining))} over budget`
-            : `${formatRupees(remaining)} remaining`
-          }
-        </p>
+        {/* 85% warning */}
+        {committedPct >= 85 && committedPct < 100 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4">
+            <p className="text-[11px] font-medium tracking-wide uppercase text-amber-700 mb-1">Approaching limit</p>
+            <p className="text-[15px] text-amber-800">
+              <span className="font-medium">{committedPct}%</span> of your budget is committed. Only <span className="font-medium">{formatRupees(remaining)}</span> left to allocate.
+            </p>
+          </div>
+        )}
 
-        {/* Progress bar (FR-S10-03, FR-S10-04) */}
-        <div className="w-full bg-gray-100 rounded-full h-2 mt-4">
-          <div
-            className={`h-2 rounded-full transition-all ${
-              committedPct >= 100 ? 'bg-red-500' :
-              committedPct >= 85  ? 'bg-amber-500' :
-              'bg-green-500'
-            }`}
-            style={{ width: `${Math.min(committedPct, 100)}%` }}
-          />
-        </div>
-        <p className="text-sm text-gray-500 mt-1">{committedPct}% committed</p>
-      </div>
+        {/* Committed vendors */}
+        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+            <div>
+              <p className="text-xl font-medium">Committed vendors</p>
+              <p className="text-sm text-gray-500 mt-0.5">{committedVendors.length} vendor{committedVendors.length !== 1 ? 's' : ''}</p>
+            </div>
+            <p className="text-[17px] font-medium text-gray-900">{formatRupees(committed)}</p>
+          </div>
 
-      {/* 100% alert */}
-      {committedPct >= 100 && (
-        <div className="mx-4 mb-3 bg-red-50 border border-red-400 rounded-2xl p-3">
-          <p className="text-sm font-medium text-red-700">
-            Budget exceeded — committed spend is over your planned total by {formatRupees(committed - planned)}.
-          </p>
-        </div>
-      )}
-
-      {/* 85% warning */}
-      {committedPct >= 85 && committedPct < 100 && (
-        <div className="mx-4 mb-3 bg-amber-50 border border-amber-400 rounded-2xl p-3">
-          <p className="text-sm font-medium text-amber-800">
-            You've committed {formatRupees(committed)} — {committedPct}% of your planned budget.
-          </p>
-        </div>
-      )}
-
-      {/* Committed vendors accordion */}
-      <div className="mx-4 mb-3 bg-white border border-gray-100 rounded-2xl overflow-hidden">
-        <button
-          onClick={() => setVendorsExpanded(v => !v)}
-          className="flex items-center justify-between w-full px-4 py-3 min-h-[44px]"
-        >
-          <p className="text-xl font-medium">Committed vendors</p>
-          <p className="text-sm text-gray-500">{formatRupees(committed)}</p>
-        </button>
-        {vendorsExpanded && (
-          <div className="border-t border-gray-100 divide-y divide-gray-100">
-            {committedVendors.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-500">No committed vendors yet.</p>
-            ) : committedVendors.map(v => (
+          {committedVendors.length === 0 ? (
+            <div className="px-4 py-6 text-center">
+              <p className="text-sm text-gray-500">No booked or confirmed vendors yet.</p>
               <button
-                key={v.id}
-                onClick={() => navigate(`/wedding/${weddingId}/vendors/${v.id}`)}
-                className="flex items-center justify-between w-full px-4 py-3 text-left min-h-[44px]"
+                onClick={() => navigate(`/wedding/${weddingId}/vendors`)}
+                className="text-sm text-vivaah-600 mt-1 min-h-[44px] flex items-center mx-auto"
               >
-                <div>
-                  <p className="text-[15px] text-gray-900">{v.vendor_name}</p>
-                  <p className="text-xs text-gray-500">{v.category}</p>
-                </div>
-                <p className="text-sm font-medium text-gray-900">{formatRupees(v.negotiated_rate ?? 0)}</p>
+                Add vendors →
               </button>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Paid milestones accordion */}
-      <div className="mx-4 mb-3 bg-white border border-gray-100 rounded-2xl overflow-hidden">
-        <button
-          onClick={() => setPaymentsExpanded(v => !v)}
-          className="flex items-center justify-between w-full px-4 py-3 min-h-[44px]"
-        >
-          <p className="text-xl font-medium">Payments made</p>
-          <p className="text-sm text-gray-500">{formatRupees(paid)}</p>
-        </button>
-        {paymentsExpanded && (
-          <div className="border-t border-gray-100 divide-y divide-gray-100">
-            {paidMilestones.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-500">No payments recorded yet.</p>
-            ) : paidMilestones.map((m, i) => (
-              <div key={i} className="flex items-center justify-between px-4 py-3">
-                <div>
-                  <p className="text-[15px] text-gray-900">
-                    {m.vendor_instances_view?.[0]?.vendor_name ?? 'Unknown'}
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {committedVendors.map(v => (
+                <button
+                  key={v.id}
+                  onClick={() => navigate(`/wedding/${weddingId}/vendors/${v.id}`)}
+                  className="flex items-center justify-between w-full px-4 py-3 text-left min-h-[44px] hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] font-medium text-gray-900 truncate">{v.vendor_name}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <p className="text-sm text-gray-500">{v.category}</p>
+                      <span className={`text-[11px] font-medium tracking-wide uppercase px-2 py-0.5 rounded-full ${statusColour(v.confirmation_status)}`}>
+                        {v.confirmation_status}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-[15px] font-medium text-gray-900 ml-3 flex-shrink-0">
+                    {formatRupees(v.negotiated_rate ?? 0)}
                   </p>
-                  {m.description && <p className="text-xs text-gray-500">{m.description}</p>}
-                  {m.paid_date && <p className="text-xs text-gray-400">{formatDateDDMMYYYY(m.paid_date)}</p>}
-                </div>
-                <p className="text-sm font-medium text-gray-900">{formatRupees(m.amount)}</p>
-              </div>
-            ))}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Payments made */}
+        <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+          <div className="px-4 py-3 flex items-center justify-between border-b border-gray-100">
+            <div>
+              <p className="text-xl font-medium">Payments made</p>
+              <p className="text-sm text-gray-500 mt-0.5">{paidMilestones.length} payment{paidMilestones.length !== 1 ? 's' : ''}</p>
+            </div>
+            <p className="text-[17px] font-medium text-emerald-600">{formatRupees(paid)}</p>
           </div>
-        )}
+
+          {paidMilestones.length === 0 ? (
+            <div className="px-4 py-6 text-center">
+              <p className="text-sm text-gray-500">No payments recorded yet.</p>
+              <button
+                onClick={() => navigate(`/wedding/${weddingId}/payments`)}
+                className="text-sm text-vivaah-600 mt-1 min-h-[44px] flex items-center mx-auto"
+              >
+                View payment calendar →
+              </button>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {paidMilestones.map((m, i) => (
+                <div key={i} className="flex items-center justify-between px-4 py-3 min-h-[44px]">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] font-medium text-gray-900 truncate">
+                      {m.vendor_instances_view?.[0]?.vendor_name ?? 'Payment'}
+                    </p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      {m.description && (
+                        <p className="text-sm text-gray-500 truncate">{m.description}</p>
+                      )}
+                      {m.paid_date && (
+                        <p className="text-sm text-gray-400 flex-shrink-0">{formatDateDDMMYYYY(m.paid_date)}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="ml-3 flex-shrink-0 text-right">
+                    <p className="text-[15px] font-medium text-emerald-600">{formatRupees(m.amount)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
 
       <BottomNav

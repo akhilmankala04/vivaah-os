@@ -177,7 +177,7 @@ export default function PlannerDashboard({ wedding }: Props) {
       <BottomNav 
         weddingId={wedding.id}
         currentAccessLevel={getMockRole() === 'full' ? 'planner_full' : getMockRole()}
-        currentPath={`/wedding/${wedding.id}/dashboard`}
+        currentPath={`/wedding/${wedding.id}`}
       />
     </div>
   );
