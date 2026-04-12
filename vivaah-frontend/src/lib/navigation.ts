@@ -41,6 +41,11 @@ export const NAV_ITEMS: NavItem[] = [
     accessLevels: ['planner_full', 'head_planner', 'full'],
   },
   {
+    label: 'Assistant',
+    path: (id) => `/wedding/${id}/assistant`,
+    accessLevels: ['planner_full', 'head_planner', 'full'],
+  },
+  {
     label: 'Settings',
     path: (id) => `/wedding/${id}/settings`,
     accessLevels: ['planner_full', 'head_planner', 'full'],

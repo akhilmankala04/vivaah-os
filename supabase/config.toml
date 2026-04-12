@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.generate-weekly-briefing]
 verify_jwt = false
+
+[functions.ai-assistant]
+verify_jwt = false

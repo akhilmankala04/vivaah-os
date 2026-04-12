@@ -21,7 +21,8 @@ import ConfirmationTracker from './pages/tracker/ConfirmationTracker';
 import Portfolio from './pages/portfolio/Portfolio';
 import TemplateLibrary from './pages/templates/TemplateLibrary';
 import Timeline from './pages/timeline/Timeline';
-import WeeklyBriefing from './pages/briefings/WeeklyBriefing';
+import WeeklyBriefing from './pages/briefings/WeeklyBriefing'
+import PlanningAssistant from './pages/assistant/PlanningAssistant';
 import LoginPage from './pages/auth/LoginPage';
 import { getMockRole } from './lib/mockAuth';
 import { useOffline } from './lib/useOffline';
@@ -150,6 +151,7 @@ function App() {
             {/* Phase 3 — AI timeline + weekly briefing */}
             <Route path="/wedding/:weddingId/timeline" element={<ProtectedRoute><Timeline /></ProtectedRoute>} />
             <Route path="/wedding/:weddingId/briefings" element={<ProtectedRoute><WeeklyBriefing /></ProtectedRoute>} />
+            <Route path="/wedding/:weddingId/assistant" element={<ProtectedRoute><PlanningAssistant /></ProtectedRoute>} />
             {/* Wedding dashboard — replaces the Navigate stub */}
             <Route path="/wedding/:weddingId" element={<ProtectedRoute><WeddingDashboard /></ProtectedRoute>} />
 
